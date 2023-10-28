@@ -192,27 +192,6 @@
 
                 .on("mouseover", (m, d) => {
                     showTooltip(m, d, feature);
-                   /* d3.select(this)
-                        .attr("stroke", "green") // Set the border color to red
-                        .attr("stroke-width", 5); // Set the border width
-
-
-
-                    tooltip.transition()
-                        .duration(200)
-                        .style("opacity", .9);
-
-
-
-
-                    const condition = feature === 'POP1980';
-                    const tooltipContent = condition? "<strong>County:</strong> " + d['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + d['properties']['TOWN'] + "<br>" + "<strong>Population in 1980:</strong> " + d['properties'][feature]:
-                        "<strong>County:</strong> " + d['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + d['properties']['TOWN'] + "<br>" + "<strong>Population change between in 2000 and 2010:</strong> " + d['properties'][feature];
-
-                    tooltip.html(tooltipContent)
-                        .style("left", m.clientX + "px")
-                        .style("top", (m.clientY + window.scrollY) + "px");
-                    */
                 })
                 .on("mousemove", (m, d) => {
                     tooltip.style("opacity", .9);
