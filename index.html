@@ -1,50 +1,258 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample HTML Page</title>
+    <script src="./libs/d3.js"></script>
+    <script src="libs/d3jstopojson.v1.js"></script>
+    <title>MA Map</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 40px;
+        #tooltip {
+            position: absolute;
+            opacity:0;
+            top: 0;
+            left: 0;
+            width: auto;
+            padding: 10px;
+            background: white;
+            font-family: sans-serif;
+            font-size: medium;
+            border-radius: 2px;
+            line-height: 1;
+        }
+        
+        path {
+            stroke-width: .5px;
+            stroke: black
+        }
+        
+        path:hover {
+            opacity: .6;
+            stroke: black;
+            stroke-width: 4px;
         }
 
-        h1 {
-            color: #333;
+        .container{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
 
-        p {
-            color: #666;
-        }
+
     </style>
+
 </head>
+
 <body>
+    <div id="tooltip"></div>
+    <div class="container">
+        <h1>Major Assignment 2</h1>
+        <h3>Ben George Samuel</h3>
+        <div class="fig1"></div>
+        <div class="fig2"></div>
+        <div class="fig3"></div>
 
-    <header>
-        <h1>Welcome to My Website</h1>
-    </header>
 
-    <nav>
-        <ul>
-            <li><a href="#">Home</a></li>
-            <li><a href="#">About</a></li>
-            <li><a href="#">Contact</a></li>
-        </ul>
-    </nav>
+    </div>
 
-    <section>
-        <article>
-            <h2>Article Title</h2>
-            <p>This is a sample article. You can replace this text with your own content.</p>
-        </article>
+    <script>
+        /*-------------------------------------------------------*/
+        /*------------------- Window setting --------------------*/
+        /*-------------------------------------------------------*/
+        // dimension of the page
+        const window_dims = {
+            width: window.innerWidth,
+            height: window.innerHeight
+        };
 
-        <article>
-            <h2>Another Article Title</h2>
-            <p>This is another sample article. Feel free to modify it as needed.</p>
-        </article>
-    </section>
 
-    <footer>
-        <p>&copy; 2023 Your Website Name. All rights reserved.</p>
-    </
+        const svgWidth = window_dims.width/2;
+        const svgHeight = window_dims.width/3;
+        // Append an SVG element to body, then append a path for the boundaries
+
+
+
+        /*-------------------------------------------------------*/
+        /*-----------------parallel load data--------------------*/
+        /*-------------------------------------------------------*/
+
+        // a topojson file containing population of each town in different years
+        const MA_counties = "./data/towns.topojson"
+            // gini index per county
+        const gini_index = "./data/gini_index.csv"
+        const MA_county = "./data/county.topojson"
+
+
+
+
+        // open both files
+        Promise.all([
+            d3.json(MA_counties),
+            d3.csv(gini_index),
+            d3.json(MA_county),
+        ]).then(data =>
+        {
+            // topology data
+            const topology_data = data[0];
+            // gini index data
+            const csv_data = data[1];
+            const county_data=data[2];
+
+            const countyIndex = new Map();
+            county_data.forEach(function (county) {
+                countyIndex.set(county["fips_code"], county);
+            });
+
+            const geometries = topology_data.objects.ma.geometries;
+            // Merge the county data with town geometries based on FIPS code
+            geometries.forEach(function(town) {
+                const fips = town.properties["FIPS_STCO"];
+                const countyD = countyIndex.get(fips) || {};
+                town.properties.countyData = countyD["county"];
+            });
+
+            const geojson = topojson.feature(topology_data, topology_data.objects.ma);
+            const generateMap1 = (feat,containerName,width,height,margin=30)=> {
+                const svg = d3.select(containerName).append("svg")
+                    .attr("width", width)
+                    .attr("height", height);
+
+            /*-------------------------------------------------------*/
+            /*-----------------Topojson data handling----------------*/
+            /*-------------------------------------------------------*/
+            // if topojson file is imported we need to 
+            // convert topology data to geojson 
+           // const geojson = topojson.feature(mergedTopoJSON, mergedTopoJSON.objects.topology_data.ma);
+
+            /*-------------------------------------------------------*/
+            /*----------------------Projections----------------------*/
+            /*-------------------------------------------------------*/
+            const projections = [
+                d3.geoAzimuthalEqualArea(), //Azimuthal projections project the sphere directly onto a plane.
+                d3.geoAlbersUsa(), // USA conic projection
+                d3.geoAlbers(), // equal-area conic projection
+                d3.geoMercator(), // cylindrical projection
+                d3.geoNaturalEarth1(), // pseudocylindrical projection designed by Tom Patterson
+                d3.geoEqualEarth(), // Equal Earth projection, by Bojan Šavrič et al., 2018.
+                d3.geoConicEqualArea(), //equal-area conic projection
+                d3.geoEquirectangular(), //Cylindrical Projections
+                d3.geoOrthographic()
+            ]
+            /*-------------------------------------------------------*/
+            /*----------------geoPath generator----------------------*/
+            /*-------------------------------------------------------*/
+            const feature = feat
+            const geoPath_generator = d3.geoPath()
+                .projection(projections[3].fitSize([width-margin,height-margin], geojson))
+            /*-------------------------------------------------------*/
+            /*----------------------Color Scaling--------------------*/
+            /*-------------------------------------------------------*/
+            //https://observablehq.com/@d3/working-with-color
+            //https://colorbrewer2.org/#type=diverging&scheme=RdYlBu&n=6
+            const colorInterpolator = d3.interpolateRgbBasis(['#d73027','#fc8d59','#fee090','#e0f3f8','#91bfdb','#4575b4'].reverse())
+                // if the data is scaled using log scale
+            const logScale = d3.scaleLog()
+                .domain(d3.extent(geojson.features, (d) => {
+                    return d['properties'][feature]
+                }))
+            // if the data is scaled using linear scale
+            const linearScale = d3.scaleLinear()
+                .domain(d3.extent(geojson.features, (d) => {
+                    return d['properties'][feature]
+                }))
+            /*-------------------------------------------------------*/
+            /*---------------------- Tooltip ------------------------*/
+            /*-------------------------------------------------------*/
+            const tooltip = d3.select("#tooltip");
+            /*--------------------------------------------------------*/
+            /*----------------- channelling marks --------------------*/
+            /*--------------------------------------------------------*/
+                const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+            svg.selectAll("path")
+                .data(geojson.features)
+                .enter()
+                .append("path")
+                .attr("d", d => geoPath_generator(d))
+                .attr("fill", d => {
+                    if (feat === "POP1980") {
+                        return colorInterpolator(logScale(d['properties'][feature]));
+                    }
+                    else if(feat === "POPCH00_10") {
+                        return colorInterpolator(linearScale(d['properties'][feature]));
+                    }
+                    else {
+                        return colorScale(d['properties']['countyData']);
+                    }
+                })
+
+
+                .on("mouseover", (m, d) => {
+                    showTooltip(m, d, feature);
+                   /* d3.select(this)
+                        .attr("stroke", "green") // Set the border color to red
+                        .attr("stroke-width", 5); // Set the border width
+
+
+
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+
+
+
+
+                    const condition = feature === 'POP1980';
+                    const tooltipContent = condition? "<strong>County:</strong> " + d['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + d['properties']['TOWN'] + "<br>" + "<strong>Population in 1980:</strong> " + d['properties'][feature]:
+                        "<strong>County:</strong> " + d['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + d['properties']['TOWN'] + "<br>" + "<strong>Population change between in 2000 and 2010:</strong> " + d['properties'][feature];
+
+                    tooltip.html(tooltipContent)
+                        .style("left", m.clientX + "px")
+                        .style("top", (m.clientY + window.scrollY) + "px");
+                    */
+                })
+                .on("mousemove", (m, d) => {
+                    tooltip.style("opacity", .9);
+                })
+                .on("mouseout", (m, d) => {
+                    tooltip.transition()
+                        .duration(400)
+                        .style("opacity", 0);
+                });
+                function showTooltip(event, data, feature)
+                {
+                    const tooltipContent = getTooltipContent(data, feature);
+
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+
+                    tooltip.html(tooltipContent)
+                        .style("left", event.clientX + "px")
+                        .style("top", (event.clientY + window.scrollY) + "px");
+                }
+                function getTooltipContent(data, feature) {
+                    let tooltipContent;
+                    if (feature==='POP1980') {
+                        tooltipContent = "<strong>County:</strong> " + data['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + data['properties']['TOWN'] + "<br>" + "<strong>Population in 1980:</strong> " + data['properties'][feature]
+                    }
+                    else if (feature ==='POPCH00_10' ){
+                        tooltipContent = "<strong>County:</strong> " + data['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + data['properties']['TOWN'] + "<br>" + "<strong>Population change between in 2000 and 2010:</strong> " + data['properties'][feature];
+                    }
+                    else {
+                        tooltipContent ="<strong>County:</strong> " + data['properties']['countyData'] + "<br>" + "<strong>TOWN:</strong> " + data['properties']['TOWN'];
+                    }
+                    return tooltipContent;
+                }
+            }
+            generateMap1("POP1980",".fig1",svgWidth,svgHeight)
+            generateMap1("POPCH00_10",".fig2",svgWidth,svgHeight)
+            generateMap1('county',".fig3",svgWidth,svgHeight)
+        })
+    </script>
+</body>
+
+</html>
