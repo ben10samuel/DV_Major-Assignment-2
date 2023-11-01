@@ -190,7 +190,7 @@
                 })
 
 
-                .on("mouseover", (m, d) => {
+                .on("mouseenter", (m, d) => {
                     showTooltip(m, d, feature);
                 })
                 .on("mousemove", (m, d) => {
@@ -206,7 +206,7 @@
                     const tooltipContent = getTooltipContent(data, feature);
 
                     tooltip.transition()
-                        .duration(200)
+                        .duration(2000)
                         .style("opacity", .9);
 
                     tooltip.html(tooltipContent)
